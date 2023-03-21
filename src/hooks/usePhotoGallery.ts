@@ -11,6 +11,8 @@ import { Filesystem, Directory } from "@capacitor/filesystem"
 import { Preferences } from "@capacitor/preferences"
 import { Capacitor } from "@capacitor/core"
 
+const PHOTO_STORAGE = "photos"
+
 export function usePhotoGallery() {
 	const [photos, setPhotos] = useState<UserPhoto[]>([])
 	const savePicture = async (
@@ -31,6 +33,27 @@ export function usePhotoGallery() {
 			webviewPath: photo.webPath,
 		}
 	}
+
+	useEffect(() => {
+		const loadSaved = async () => {
+			const { value } = await Preferences.get({ key: PHOTO_STORAGE })
+			const photosInPreferences = (
+				value ? JSON.parse(value) : []
+			) as UserPhoto[]
+
+			for (let photo of photosInPreferences) {
+				const file = await Filesystem.readFile({
+					path: photo.filepath,
+					directory: Directory.Data,
+				})
+				// Web platform only: Load the photo as base64 data
+				photo.webviewPath = `data:image/jpeg;base64,${file.data}`
+			}
+			setPhotos(photosInPreferences)
+		}
+		loadSaved()
+	}, [])
+
 	const takePhoto = async () => {
 		const photo = await Camera.getPhoto({
 			resultType: CameraResultType.Uri,
@@ -41,6 +64,8 @@ export function usePhotoGallery() {
 		const savedFileImage = await savePicture(photo, fileName)
 		const newPhotos = [savedFileImage, ...photos]
 		setPhotos(newPhotos)
+
+		Preferences.set({ key: PHOTO_STORAGE, value: JSON.stringify(newPhotos) })
 	}
 	return {
 		takePhoto,
